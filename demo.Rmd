@@ -1,0 +1,14 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+# suppressPackageStartupMessages(library(ChAMP, quietly = T))
+suppressPackageStartupMessages(library(ggplot2, quietly = T))
+suppressPackageStartupMessages(library(MASS, quietly = T))
+suppressPackageStartupMessages(library(dplyr, quietly = T))
+source("helper_fns.R")
+
+```
+
