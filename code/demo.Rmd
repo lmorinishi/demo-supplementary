@@ -7,31 +7,63 @@ output: html_notebook
 # load required packages
 # suppressPackageStartupMessages(library(ChAMP, quietly = T))
 suppressPackageStartupMessages(library(ggplot2, quietly = T))
+suppressPackageStartupMessages(library(matrixStats, quietly = T))
+suppressPackageStartupMessages(library(FactoMineR, quietly = T))
 suppressPackageStartupMessages(library(MASS, quietly = T))
 suppressPackageStartupMessages(library(dplyr, quietly = T))
 
 # read in normed methylation data from Jung and Leanna
-bVals_Jung <- readRDS("data/Jung_champnorm.rds")
-bVals_Leanna <- readRDS("data/WvT_champnorm.rds")
+bVals_Jung = readRDS("../data/Jung_champnorm.rds")
+bVals_Leanna = readRDS("../data/WvT_champnorm.rds")
+nsamples_Jung = ncol(bVals_Jung)
+nsamples_Leanna = ncol(bVals_Leanna)
 
 # merge datasets by CpG name and set rownames
 bVals <- merge(bVals_Jung, bVals_Leanna, by=0)
 rownames(bVals) <- bVals$Row.names
 bVals$Row.names <- NULL
 
-# read in phenotype metadata
-pheno_Jung <- readRDS(paste0("data/Jung_pheno.rds"))
-pheno = data.frame(dataset = rep(c("Jung", "Leanna"), times=c(74, 16)),
-                    cell.line = c(as.character(pheno_Jung$Subject.ID), sapply(strsplit(names(bVals)[75:90], "[.-]"), "[", 1)))
+# read in phenotype metadata, extract cell line metadata from column names
+pheno_Jung <- readRDS(paste0("../data/Jung_pheno.rds"))
+pheno = data.frame(dataset = rep(c("Jung", "Leanna"), times=c(nsamples_Jung, nsamples_Leanna)),
+                   cell.type = c(as.character(pheno_Jung$Subject.ID), sapply(strsplit(names(bVals)[(nsamples_Jung+1):ncol(bVals)], "[.-]"), "[", 1)))
 
-# set cell line factor levels for proper ordering
-pheno$cell.line <- factor(pheno$cell.line, levels=c("HSC", "MPP", "LMPP", "CMP", "GMP", "MEP", "CD34-", "CD34+38+", "CD34+38-", "KG1", "KG1T", "Thp1S", "Thp1T"))
+# set cell type factor levels for proper ordering
+pheno$cell.type <- factor(pheno$cell.type, levels=c("HSC", "MPP", "LMPP", "CMP", "GMP", "MEP", "CD34-", "CD34+38+", "CD34+38-", "KG1", "KG1T", "Thp1S", "Thp1T"))
 
+# set up palette for consistent colors across figures
+pal <- c("tomato3", "sienna2", "darkgoldenrod1", "darkolivegreen2", "springgreen3", "mediumseagreen", 
+                 "deeppink1", "darkorchid1", "darkorchid4", "gray55", "firebrick3", "deepskyblue1", "deepskyblue3")
+names(pal) <- levels(pheno$cell.type)
 
 ```
 
 
 ```{r}
+# find top 10,000 most variable CpGs
+bVals_summary = data.frame(mean=rowMeans(bVals), 
+                           stdev=rowSds(as.matrix(bVals)))
+bVals_summary = bVals_summary[order(bVals_summary$stdev, decreasing=T),]
+bVals_small = bVals[rownames(bVals_summary[1:10000,]),]
+
+# find top 3 PCs with PCA of smaller dataset
+num_dimensions_PCA = 3
+bVal_PCA = PCA(t(bVals_small), ncp=num_dimensions_PCA, scale.unit=T, graph=F)
+
+# get transformed coords, and add metadata for simpler ggplot visualization
+plot_PCA = as.data.frame(bVal_PCA$ind$coord)
+names(plot_PCA) <- paste0("PC", 1:num_dimensions_PCA)
+plot_PCA$dataset <- pheno$dataset
+plot_PCA$cell.type <- pheno$cell.type
+
+# scatterplot of PC1 v PC2 colored by dataset
+ggplot(plot_PCA, aes(x=PC1, y=PC2, color=dataset)) +
+  geom_point() + theme_classic()
+
+# scatterplot of PC1 v PC2 colored by cell type
+ggplot(plot_PCA, aes(x=PC1, y=PC2, color=cell.type)) +
+  geom_point() + theme_classic() +
+  scale_color_manual(values=pal) + labs(color="Cell type")
 
 ```
 
