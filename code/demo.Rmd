@@ -22,6 +22,8 @@ library(matrixStats)
 library(FactoMineR)
 library(MASS)
 library(RColorBrewer)
+library(dendextend)
+library(reshape2)
 
 # read in normed methylation data from Jung et al
 bvals = readRDS("../data/Jung_champnorm.rds")
@@ -31,6 +33,7 @@ nsamples = ncol(bvals)
 pheno_Jung = readRDS(paste0("../data/Jung_pheno.rds"))
 pheno = data.frame(dataset = "Jung",
                    cell.type = as.character(pheno_Jung$Subject.ID),
+                   sample = pheno_Jung$Sample_Name,
                    patient = pheno_Jung$Human)
 pheno$sample.type = ifelse(pheno$cell.type %in% c("CD34-", "CD34+38+", "CD34+38-"), "Cancer", "Normal")
 
@@ -123,6 +126,7 @@ Dark purple: *HSCs*,
 Light purple: *CD34+CD38+*,  
 Pink: *CD34- blasts*
 
+
 ### Heatmap of leukemia cells colored by patient
 ```{r}
 gplots::heatmap.2(leuk_cluster_data, 
@@ -146,6 +150,18 @@ gplots::heatmap.2(leuk_cluster_data,
 
 ```
 
+
+### Calculate cluster purity for known cancer cell types
+```{r}
+cut_cluster = melt(cutree(leuk_clusters, k = 3), value.name="cluster")
+cut_cluster$sample = rownames(cut_cluster)
+pheno_cluster = merge(pheno, cut_cluster, by="sample")
+
+confusion_mat = table(pheno_cluster[,c("cluster", "cell.type")])
+initial_purity_cancer = sum(rowMaxs(confusion_mat))/nrow(pheno_cluster)
+initial_purity_cancer
+
+```
 
 
 ## Heatmap of normal bone marrow cells
@@ -209,6 +225,20 @@ gplots::heatmap.2(norm_cluster_data,
 
 ```
 
+
+### Calculate cluster purity for known normal cell types
+```{r}
+cut_cluster = melt(cutree(norm_clusters, k = 6), value.name="cluster")
+cut_cluster$sample = rownames(cut_cluster)
+pheno_cluster = merge(pheno, cut_cluster, by="sample")
+
+confusion_mat = table(pheno_cluster[,c("cluster", "cell.type")])
+initial_purity_normal = sum(rowMaxs(confusion_mat))/nrow(pheno_cluster)
+initial_purity_normal
+
+```
+
+
 ## Use LDA to separate HSCs, LSCs, and blasts
 ```{r}
 # Use LDA to separate HSCs, LSCs, and differentiated tumor cells
@@ -249,10 +279,8 @@ ggplot(data=as.data.frame(plda$x), aes(x=LD1, y=LD2, color=pheno$cell.type)) + g
 ```
 
 
-
+## Cluster cancer samples in the LDA-transformed space
 ```{r, messages=F}
-require(dendextend)
-
 # how do patient cancer samples cluster in the new space?
 leuk_samples = pheno$sample.type == "Cancer"
 leuk_cluster_data = as.matrix(plda$x)[leuk_samples,]
@@ -289,6 +317,18 @@ gplots::heatmap.2(leuk_cluster_data,
 Dark purple: *HSCs*,  
 Light purple: *CD34+CD38+*,  
 Pink: *CD34- blasts*
+
+### Calculate cluster purity
+```{r}
+cut_cluster = melt(cutree(leuk_clusters, k = nclust), value.name="cluster")
+cut_cluster$sample = rownames(cut_cluster)
+pheno_cluster = merge(pheno, cut_cluster, by="sample")
+
+confusion_mat = table(pheno_cluster[,c("cluster", "cell.type")])
+lda_purity_cancer = sum(rowMaxs(confusion_mat))/nrow(pheno_cluster)
+lda_purity_cancer
+
+```
 
 
 
@@ -332,5 +372,29 @@ Yellow: *LMPP*,
 Light green: *CMP*,   
 Green: *GMP*,  
 Dark green: *MEP*
+
+
+### Calculate cluster purity for known normal cell types
+```{r}
+cut_cluster = melt(cutree(norm_clusters, k = nclust), value.name="cluster")
+cut_cluster$sample = rownames(cut_cluster)
+pheno_cluster = merge(pheno, cut_cluster, by="sample")
+
+confusion_mat = table(pheno_cluster[,c("cluster", "cell.type")])
+lda_purity_normal = sum(rowMaxs(confusion_mat))/nrow(pheno_cluster)
+lda_purity_normal
+
+```
+
+
+## Show cluster purities
+```{r}
+paste("Initial normal cluster purity:", initial_purity_normal)
+paste("LDA normal cluster purity:", lda_purity_normal)
+
+paste("Initial cancer cluster purity:", initial_purity_cancer)
+paste("LDA cancer cluster purity:", lda_purity_cancer)
+
+```
 
 
