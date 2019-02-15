@@ -28,25 +28,26 @@ bvals = readRDS("../data/Jung_champnorm.rds")
 nsamples = ncol(bvals)
 
 # read in phenotype metadata
-pheno_Jung <- readRDS(paste0("../data/Jung_pheno.rds"))
+pheno_Jung = readRDS(paste0("../data/Jung_pheno.rds"))
 pheno = data.frame(dataset = "Jung",
                    cell.type = as.character(pheno_Jung$Subject.ID),
                    patient = pheno_Jung$Human)
+pheno$sample.type = ifelse(pheno$cell.type %in% c("CD34-", "CD34+38+", "CD34+38-"), "Cancer", "Normal")
 
 # set cell type factor levels for proper ordering
-pheno$cell.type <- factor(pheno$cell.type, 
+pheno$cell.type = factor(pheno$cell.type, 
                           levels=c("HSC", "MPP", "LMPP", "CMP", "GMP", "MEP", 
                                    "CD34-", "CD34+38+", "CD34+38-"))
 
 # set up palette for consistent colors across figures
-pal <- c("tomato3", "sienna2", "darkgoldenrod1", "darkolivegreen2", "springgreen3", "mediumseagreen", 
+pal = c("tomato3", "sienna2", "darkgoldenrod1", "darkolivegreen2", "springgreen3", "mediumseagreen", 
                  "deeppink1", "darkorchid1", "darkorchid4")
-names(pal) <- levels(pheno$cell.type)
+names(pal) = levels(pheno$cell.type)
 patientpal = c("#89C5DA", "#DA5724", "#74D944", "#CE50CA", "#3F4921", "#C0717C", "#CBD588", "#5F7FC7", 
                "#673770", "#D3D93E", "#38333E", "#508578", "#D7C1B1", "#689030", "#AD6F3B", "#CD9BCD", 
                "#D14285", "#6DDE88", "#652926", "#7FDCC0", "#C84248", "#8569D5", "#5E738F", "#D1A33D", 
                "#8A7C64", "#599861")
-names(patientpal) <- levels(pheno$patient)
+names(patientpal) = levels(pheno$patient)
 
 ```
 
@@ -56,13 +57,10 @@ names(patientpal) <- levels(pheno$patient)
 For a nice overview of all samples, I start with PCA and color points based on cell type. Qualitatively, the normal cells (red-green) are already separate from the leukemic cells (pink/purple). However, the cell types are intermixed in this projection.
 ```{r}
 # set seed
-set.seed(1)
+set.seed(5)
 
-# find top 10,000 most variable CpGs, subset bvals
-bvals_summary = data.frame(mean=rowMeans(bvals),
-                           stdev=rowSds(as.matrix(bvals)))
-bvals_summary = bvals_summary[order(bvals_summary$stdev, decreasing=T),]
-bvals_small = bvals[rownames(bvals_summary[1:10000,]),]
+# sample 10,000 CpGs to plot
+bvals_small = bvals[sample(1:nrow(bvals), 10000), ]
 
 # find top 3 PCs with PCA of smaller dataset (~8s)
 num_dimensions_PCA = 3
@@ -70,9 +68,9 @@ bVal_PCA = PCA(t(bvals_small), ncp=num_dimensions_PCA, scale.unit=T, graph=F)
 
 # get transformed coords, and add metadata for simpler ggplot visualization
 plot_PCA = as.data.frame(bVal_PCA$ind$coord)
-names(plot_PCA) <- paste0("PC", 1:num_dimensions_PCA)
-plot_PCA$dataset <- pheno$dataset
-plot_PCA$cell.type <- pheno$cell.type
+names(plot_PCA) = paste0("PC", 1:num_dimensions_PCA)
+plot_PCA$dataset = pheno$dataset
+plot_PCA$cell.type = pheno$cell.type
 
 # scatterplot of PC1 v PC2 colored by cell type
 ggplot(plot_PCA, aes(x=PC1, y=PC2, color=cell.type)) +
@@ -91,13 +89,13 @@ bvals_heatmap = bvals_small[sample(1:nrow(bvals_small), 1000), ]
 
 # how do patient cancer samples cluster
 # AKA is it easy to find out what separates cancer stem cells from proliferative cancer cells?
-leuk_samples = pheno$cell.type %in% c("CD34-", "CD34+38+", "CD34+38-")
+leuk_samples = pheno$sample.type == "Cancer"
 leuk_cluster_data = t(bvals_heatmap[,leuk_samples])
 leuk_cluster_pheno = pheno[leuk_samples,]
-leuk_clusters <- as.dendrogram(stats::hclust(dist(leuk_cluster_data, method="manhattan"), method="complete"))
+leuk_clusters = as.dendrogram(stats::hclust(dist(leuk_cluster_data, method="euclidean"), method="ward.D2"))
 
 # change colors
-morecols <- colorRampPalette(c("dodgerblue4", "gray0", "firebrick4"))
+morecols = colorRampPalette(c("dodgerblue4", "gray0", "firebrick4"))
 
 # show heatmap
 gplots::heatmap.2(leuk_cluster_data, 
@@ -151,15 +149,15 @@ gplots::heatmap.2(leuk_cluster_data,
 
 
 ## Heatmap of normal bone marrow cells
-In normal cells, too, cells from the same patient are qualitatively more similar to each other than cells of the same type across patients. Although, hierarchical clustering shows patients are 
+In normal cells, too, cells from the same patient are qualitatively more similar to each other than cells of the same type across patients. Although, hierarchical clustering shows some samples are not predominantly grouped by patient.
 ```{r}
 # How do normal cells cluster?
-normal_samples = pheno$cell.type %in% c("HSC", "MPP", "LMPP", "CMP", "GMP", "MEP")
-norm_cluster_data <- t(bvals_heatmap[,normal_samples])
+normal_samples = pheno$sample.type == "Normal"
+norm_cluster_data = t(bvals_heatmap[,normal_samples])
 norm_cluster_pheno = pheno[normal_samples,]
-norm_clusters <- as.dendrogram(stats::hclust(dist(norm_cluster_data, method="manhattan"), method="complete"))
+norm_clusters = as.dendrogram(stats::hclust(dist(norm_cluster_data, method="euclidean"), method="ward.D2"))
 
-morecols <- colorRampPalette(c("dodgerblue4", "gray0", "firebrick4"))
+morecols = colorRampPalette(c("dodgerblue4", "gray0", "firebrick4"))
 
 gplots::heatmap.2(norm_cluster_data, 
                   srtCol = 20,
@@ -214,13 +212,19 @@ gplots::heatmap.2(norm_cluster_data,
 ## Use LDA to separate HSCs, LSCs, and blasts
 ```{r}
 # Use LDA to separate HSCs, LSCs, and differentiated tumor cells
-bvals_LDA = t(scale(bvals_small))
+bvals_LDA = t(scale(bvals))
 train_grps = pheno$cell.type %in% c("HSC", "CD34-", "CD34+38-")
-bvals_train <- bvals_LDA[train_grps,]
+bvals_train = bvals_LDA[train_grps,]
+
+# find top 10,000 most variable CpGs, subset betas
+bvals_summary = data.frame(mean=colMeans(bvals_train),
+                           stdev=colSds(as.matrix(bvals_train)))
+bvals_summary = bvals_summary[order(bvals_summary$stdev, decreasing=T),]
+bvals_train = bvals_train[,rownames(bvals_summary[1:10000,])]
 
 # add cell type as a metadata column, set factor order
-bvals_train <- data.frame(bvals_train, cell.type = pheno$cell.type[train_grps])
-bvals_train$cell.type <- factor(as.character(bvals_train$cell.type), 
+bvals_train = data.frame(bvals_train, cell.type = pheno$cell.type[train_grps])
+bvals_train$cell.type = factor(as.character(bvals_train$cell.type), 
                                 levels = c("HSC", "CD34-", "CD34+38-"))
 
 # LDA (~30s)
@@ -235,7 +239,7 @@ prop
 
 # project other samples into LDA transformed space (~30s)
 plda = predict(object=dfLDA,
-               newdata=as.data.frame(t(bvals)))
+               newdata=as.data.frame(bvals_LDA))
 
 # scatterplot of transformed data
 ggplot(data=as.data.frame(plda$x), aes(x=LD1, y=LD2, color=pheno$cell.type)) + geom_point() +
@@ -250,15 +254,15 @@ ggplot(data=as.data.frame(plda$x), aes(x=LD1, y=LD2, color=pheno$cell.type)) + g
 require(dendextend)
 
 # how do patient cancer samples cluster in the new space?
-leuk_samples = pheno$cell.type %in% c("CD34-", "CD34+38+", "CD34+38-")
+leuk_samples = pheno$sample.type == "Cancer"
 leuk_cluster_data = as.matrix(plda$x)[leuk_samples,]
 leuk_cluster_pheno = pheno[leuk_samples,]
-leuk_clusters <- as.dendrogram(stats::hclust(dist(leuk_cluster_data, method="euclidean"), method="ward.D2"))
+leuk_clusters = as.dendrogram(stats::hclust(dist(leuk_cluster_data, method="euclidean"), method="ward.D2"))
 
 # change colors
-morecols <- colorRampPalette(c("dodgerblue4", "gray0", "firebrick4"))
+morecols = colorRampPalette(c("dodgerblue4", "gray0", "firebrick4"))
 nclust = 3
-leuk_clusters <- color_branches(leuk_clusters, k = nclust)
+leuk_clusters = color_branches(leuk_clusters, k = nclust)
 
 # show heatmap
 gplots::heatmap.2(leuk_cluster_data, 
@@ -290,15 +294,15 @@ Pink: *CD34- blasts*
 
 ```{r}
 # How do normal cells cluster in the new space?
-normal_samples = pheno$cell.type %in% c("HSC", "MPP", "LMPP", "CMP", "GMP", "MEP")
-norm_cluster_data <- as.matrix(plda$x)[normal_samples,]
+normal_samples = pheno$sample.type == "Normal"
+norm_cluster_data = as.matrix(plda$x)[normal_samples,]
 norm_cluster_pheno = pheno[normal_samples,]
-norm_clusters <- as.dendrogram(stats::hclust(dist(norm_cluster_data, method="manhattan"), method="complete"))
+norm_clusters = as.dendrogram(stats::hclust(dist(norm_cluster_data, method="euclidean"), method="ward.D2"))
 
 # change colors
-morecols <- colorRampPalette(c("dodgerblue4", "gray0", "firebrick4"))
+morecols = colorRampPalette(c("dodgerblue4", "gray0", "firebrick4"))
 nclust = 6
-norm_clusters <- color_branches(norm_clusters, k = nclust)
+norm_clusters = color_branches(norm_clusters, k = nclust)
 
 # show heatmap
 gplots::heatmap.2(norm_cluster_data, 
