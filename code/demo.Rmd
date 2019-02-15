@@ -42,11 +42,11 @@ pheno$sample.type = ifelse(pheno$cell.type %in% c("CD34-", "CD34+38+", "CD34+38-
 # set cell type factor levels for proper ordering
 pheno$cell.type = factor(pheno$cell.type, 
                           levels=c("HSC", "MPP", "LMPP", "CMP", "GMP", "MEP", 
-                                   "CD34-", "CD34+38+", "CD34+38-"))
+                                   "CD34+38-", "CD34+38+", "CD34-"))
 
 # set up palette for consistent colors across figures
 pal = c("tomato3", "sienna2", "darkgoldenrod1", "darkolivegreen2", "springgreen3", "mediumseagreen", 
-                 "deeppink1", "darkorchid1", "darkorchid4")
+                 "darkorchid4", "darkorchid1", "deeppink1")
 names(pal) = levels(pheno$cell.type)
 patientpal = colorRampPalette(brewer.pal(9, "Set1"))(20)
 names(patientpal) = levels(pheno$patient)
@@ -254,7 +254,7 @@ bvals_train = bvals_train[,rownames(bvals_summary[1:10000,])]
 # add cell type as a metadata column, set factor order
 bvals_train = data.frame(bvals_train, cell.type = pheno$cell.type[train_grps])
 bvals_train$cell.type = factor(as.character(bvals_train$cell.type), 
-                                levels = c("HSC", "CD34-", "CD34+38-"))
+                               levels = c("HSC", "CD34-", "CD34+38-"))
 
 # LDA (~30s)
 # ptm = proc.time()
@@ -271,8 +271,11 @@ plda = predict(object=dfLDA,
                newdata=as.data.frame(bvals_LDA))
 
 # scatterplot of transformed data
-ggplot(data=as.data.frame(plda$x), aes(x=LD1, y=LD2, color=pheno$cell.type)) + geom_point() +
-  scale_color_manual(values=pal) + theme_classic() + labs(color="Cell type")
+ggplot(data=as.data.frame(plda$x), aes(x=LD1, y=LD2, color=pheno$cell.type)) + 
+  geom_point() +
+  scale_color_manual(values=pal) + 
+  theme_classic() + 
+  labs(color="Cell type")
 
 
 ```
