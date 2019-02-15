@@ -5,84 +5,43 @@ output: html_notebook
 
 ```{r}
 # load required packages
-# suppressPackageStartupMessages(library(ChAMP, quietly = T))
 suppressPackageStartupMessages(library(ggplot2, quietly = T))
 suppressPackageStartupMessages(library(matrixStats, quietly = T))
 suppressPackageStartupMessages(library(FactoMineR, quietly = T))
 suppressPackageStartupMessages(library(MASS, quietly = T))
 suppressPackageStartupMessages(library(parallelDist, quietly = T))
-suppressPackageStartupMessages(library(dendextend, quietly = T))
+# suppressPackageStartupMessages(library(dendextend, quietly = T))
 suppressPackageStartupMessages(library(RColorBrewer, quietly = T))
 
 # read in normed methylation data from Jung and Leanna
 bVals_Jung = readRDS("../data/Jung_champnorm_small.rds")
 bVals_Leanna = readRDS("../data/WvT_champnorm_small.rds")
 nsamples_Jung = ncol(bVals_Jung)
-nsamples_Leanna = ncol(bVals_Leanna)
 
 # merge datasets by CpG name and set rownames
-bVals <- merge(bVals_Jung, bVals_Leanna, by=0)
-rownames(bVals) <- bVals$Row.names
-bVals$Row.names <- NULL
+bVals <- bVals_Jung# merge(bVals_Jung, bVals_Leanna, by=0)
 
 # read in phenotype metadata, extract cell line metadata from column names
 pheno_Jung <- readRDS(paste0("../data/Jung_pheno.rds"))
-pheno = data.frame(dataset = rep(c("Jung", "Leanna"), times=c(nsamples_Jung, nsamples_Leanna)),
-                   cell.type = c(as.character(pheno_Jung$Subject.ID), sapply(strsplit(names(bVals)[(nsamples_Jung+1):ncol(bVals)], "[.-]"), "[", 1)))
+pheno = data.frame(dataset = "Jung",
+                   cell.type = as.character(pheno_Jung$Subject.ID))
 
 # set cell type factor levels for proper ordering
 pheno$cell.type <- factor(pheno$cell.type, 
-                          levels=c("HSC", "MPP", "LMPP", "CMP", "GMP", "MEP", "CD34-", "CD34+38+", "CD34+38-", 
-                                   "KG1", "KG1Tet2KO", "Thp1scramble", "Thp1Tet2KD"))
+                          levels=c("HSC", "MPP", "LMPP", "CMP", "GMP", "MEP", 
+                                   "CD34-", "CD34+38+", "CD34+38-"))
 
 # set up palette for consistent colors across figures
 pal <- c("tomato3", "sienna2", "darkgoldenrod1", "darkolivegreen2", "springgreen3", "mediumseagreen", 
-                 "deeppink1", "darkorchid1", "darkorchid4", "gray55", "firebrick3", "deepskyblue1", "deepskyblue3")
+                 "deeppink1", "darkorchid1", "darkorchid4")
 names(pal) <- levels(pheno$cell.type)
 
 ```
 
 
 ```{r}
-# how do patient cancer samples cluster
-# AKA is it easy to find out what separates cancer stem cells from proliferative cancer cells?
-clusterme <- t(bVals)
-samps = pheno$cell.type %in% c("CD34-", "CD34+38-", "CD34+38+")
-clusterme <- clusterme[samps,]
-varCpGs = colSds(clusterme)
-clusterme <- clusterme[,order(abs(varCpGs), decreasing=F)]
-heatmapme <- clusterme[,(ncol(clusterme)-1000):ncol(clusterme)] #[, sample(1:ncol(clusterme), ncol(clusterme)/50)]
-
-clusters <- as.dendrogram(stats::hclust(parDist(heatmapme, method="manhattan"), method="complete"))
-nclust = 4
-clusters <- color_branches(clusters, k = nclust)
-
-labels_colors(clusters) <- pal[pheno[samps,][order.dendrogram(clusters), "cell.type"]]
-morecols <- colorRampPalette(c("dodgerblue", "gray0", "firebrick1"))
-gplots::heatmap.2(heatmapme, 
-                  srtCol = 20,
-                  dendrogram = "both",
-                  Rowv = clusters,
-                  Colv = T,
-                  labCol = NA,
-                  labRow = NA,
-                  trace = "none",          
-                  margins = c(5,0.1),      
-                  key.xlab = NA,
-                  key.title = "Methylation",
-                  RowSideColors = pal[pheno[samps,][,"cell.type"]], # to add nice colored strips
-                  col = morecols(13)
-                  )
-
-```
-
-
-```{r}
-# find top 10,000 most variable CpGs
-bVals_summary = data.frame(mean=rowMeans(bVals), 
-                           stdev=rowSds(as.matrix(bVals)))
-bVals_summary = bVals_summary[order(bVals_summary$stdev, decreasing=T),]
-bVals_small = bVals[rownames(bVals_summary[1:10000,]),]
+# sample 16,000 rows (or CpGs) to use in PCA
+bVals_small = bVals[sample(1:nrow(bVals), 16000), ]
 
 # find top 3 PCs with PCA of smaller dataset
 num_dimensions_PCA = 3
@@ -94,10 +53,6 @@ names(plot_PCA) <- paste0("PC", 1:num_dimensions_PCA)
 plot_PCA$dataset <- pheno$dataset
 plot_PCA$cell.type <- pheno$cell.type
 
-# scatterplot of PC1 v PC2 colored by dataset
-ggplot(plot_PCA, aes(x=PC1, y=PC2, color=dataset)) +
-  geom_point() + theme_classic()
-
 # scatterplot of PC1 v PC2 colored by cell type
 ggplot(plot_PCA, aes(x=PC1, y=PC2, color=cell.type)) +
   geom_point() + theme_classic() +
@@ -107,78 +62,94 @@ ggplot(plot_PCA, aes(x=PC1, y=PC2, color=cell.type)) +
 
 
 ```{r}
-# suppressPackageStartupMessages(library(sva, quietly = T))
+# sample 1000 rows (or CpGs) to plot in heatmap
+bVals_small = bVals[sample(1:nrow(bVals), 1000), ]
 
-# use combat to normalize datasets
-# batch = pheno$dataset
-# modcombat = model.matrix(~1, data=pheno)
-# combat_edata = ComBat(dat=bVals, batch=batch, mod=modcombat, par.prior=TRUE, prior.plots=FALSE)
-# saveRDS(combat_edata, file="../data/Jung_Leanna_combat_edata.rds")
+# how do patient cancer samples cluster
+# AKA is it easy to find out what separates cancer stem cells from proliferative cancer cells?
+samps = pheno$cell.type %in% c("CD34-", "CD34+38+", "CD34+38-")
+cluster_me <- t(bVals_small)[samps,]
+clusters <- as.dendrogram(stats::hclust(parDist(cluster_me, method="manhattan"), method="complete"))
 
-```
+# change colors
+labels_colors(clusters) <- pal[pheno[samps,][order.dendrogram(clusters), "cell.type"]]
+morecols <- colorRampPalette(c("dodgerblue4", "gray0", "firebrick4"))
 
-
-
-```{r}
-# load in normalized 
-combat_edata <- readRDS("../data/Jung_Leanna_combat_edata.rds")
-
-# # find top 10,000 most variable CpGs
-# bVals_summary = data.frame(mean=rowMeans(combat_edata), 
-#                            stdev=rowSds(as.matrix(combat_edata)))
-# bVals_summary = bVals_summary[order(bVals_summary$stdev, decreasing=T),]
-# bVals_small = combat_edata[rownames(bVals_summary[1:10000,]),]
-
-# find top 3 PCs with PCA of smaller dataset
-num_dimensions_PCA = 3
-bVal_PCA = PCA(t(combat_edata), ncp=num_dimensions_PCA, scale.unit=T, graph=F)
-
-# get transformed coords, and add metadata for simpler ggplot visualization
-plot_PCA = as.data.frame(bVal_PCA$ind$coord)
-names(plot_PCA) <- paste0("PC", 1:num_dimensions_PCA)
-plot_PCA$dataset <- pheno$dataset
-plot_PCA$cell.type <- pheno$cell.type
-
-# scatterplot of PC1 v PC2 colored by dataset
-ggplot(plot_PCA, aes(x=PC1, y=PC2, color=dataset)) +
-  geom_point() + theme_classic()
-
-# scatterplot of PC1 v PC2 colored by cell type
-ggplot(plot_PCA, aes(x=PC1, y=PC2, color=cell.type)) +
-  geom_point() + theme_classic() +
-  scale_color_manual(values=pal) + labs(color="Cell type")
+# show heatmap
+gplots::heatmap.2(cluster_me, 
+                  srtCol = 20,
+                  dendrogram = "both",
+                  Rowv = clusters,
+                  Colv = T,
+                  labCol = NA,
+                  labRow = NA,
+                  trace = "none",          
+                  margins = c(5,0.1),      
+                  key.xlab = NA,
+                  key.title = "Methylation",
+                  denscol = "grey",
+                  density.info = "density",
+                  RowSideColors = pal[pheno[samps,][,"cell.type"]], # to add nice colored strips
+                  col = morecols(13)
+                  )
 
 ```
 
 ```{r}
+# How do normal cells cluster?
+samps = pheno$cell.type %in% c("HSC", "MPP", "LMPP", "CMP", "GMP", "MEP")
+cluster_me <- t(bVals_small)[samps,]
+clusters <- as.dendrogram(stats::hclust(parDist(cluster_me, method="manhattan"), method="complete"))
+
+labels_colors(clusters) <- pal[pheno[samps,][order.dendrogram(clusters), "cell.type"]]
+morecols <- colorRampPalette(c("dodgerblue4", "gray0", "firebrick4"))
+
+gplots::heatmap.2(cluster_me, 
+                  srtCol = 20,
+                  dendrogram = "both",
+                  Rowv = clusters,
+                  Colv = T,
+                  labCol = NA,
+                  labRow = NA,
+                  trace = "none",          
+                  margins = c(5,0.1),      
+                  key.xlab = NA,
+                  key.title = "Methylation",
+                  denscol = "grey",
+                  density.info = "density",
+                  RowSideColors = pal[pheno[samps,][,"cell.type"]], # to add nice colored strips
+                  col = morecols(13)
+                  )
+```
 
 
-LDAme <- t(scale(bVals))
-samps = pheno2$cell.line %in% c("HSC", "CD34-", "CD34+38-")
-LDAme2 <- LDAme[samps,]
-varCpGs = colSds(LDAme2)
-LDAme2 <- LDAme2[,order(abs(varCpGs), decreasing=F)]
-rm(varCpGs)
-LDAme2 <- LDAme2[,(ncol(LDAme2)-16000):ncol(LDAme2)]
-LDAme2 <- data.frame(as.data.frame(LDAme2), cell.line = pheno2$cell.line[samps])
-LDAme2$cell.line <- factor(as.character(LDAme2$cell.line), levels = c("HSC", "MPP", "LMPP", "CMP", "GMP", "MEP", "CD34-", "CD34+38+", "CD34+38-"))
+```{r}
+# find top 16,000 most variable CpGs
+bVals_summary = data.frame(mean=rowMeans(bVals),
+                           stdev=rowSds(as.matrix(bVals)))
+bVals_summary = bVals_summary[order(bVals_summary$stdev, decreasing=T),]
+bVals_small = bVals[rownames(bVals_summary[1:16000,]),]
 
-dfLDA = lda(formula = cell.line ~ .,
-            data=LDAme2)
+# Use LDA to separate HSCs, LSCs, and differentiated tumor cells
+train_grps = pheno$cell.type %in% c("HSC", "CD34-", "CD34+38-")
+bVals_LDA <- t(scale(bVals_small))[train_grps,]
+
+# add cell type as a metadata column, set factor order
+bVals_LDA <- data.frame(bVals_LDA, cell.type = pheno$cell.type[train_grps])
+bVals_LDA$cell.type <- factor(as.character(bVals_LDA$cell.type), 
+                              levels = c("HSC", "MPP", "LMPP", "CMP", "GMP", "MEP", "CD34-", "CD34+38+", "CD34+38-"))
+
+# train LDA
+dfLDA = lda(formula = cell.type ~ .,
+            data=LDAme)
 prop = dfLDA$svd^2/sum(dfLDA$svd^2)
 prop 
 
 plda = predict(object=dfLDA,
                newdata=as.data.frame(LDAme))
 
-pal <- c("tomato3", "sienna2", "darkgoldenrod1", "darkolivegreen2", "springgreen3", "mediumseagreen", 
-                 "deeppink1", "darkorchid1", "darkorchid4", "gray55", "firebrick3", "deepskyblue1", "deepskyblue3")
-names(pal) <- levels(pheno2$cell.line)
-
-# tiff('Figures/Supp2_JungLDA.tiff', units="in", width=5, height=4, res=300, compression = 'lzw')
-ggplot(data=as.data.frame(plda$x), aes(x=LD1, y=LD2, color=pheno2$cell.line)) + geom_point() +
+ggplot(data=as.data.frame(plda$x), aes(x=LD1, y=LD2, color=pheno$cell.type)) + geom_point() +
   scale_color_manual(values=pal) + theme_classic()
-# dev.off()
 
 
 ```
