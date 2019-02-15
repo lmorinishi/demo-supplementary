@@ -1,4 +1,6 @@
 *.RData
 *._*
 *.rds
+*.nb.html
 
+.Rproj.user

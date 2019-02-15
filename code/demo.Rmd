@@ -13,8 +13,8 @@ suppressPackageStartupMessages(library(MASS, quietly = T))
 suppressPackageStartupMessages(library(dplyr, quietly = T))
 
 # read in normed methylation data from Jung and Leanna
-bVals_Jung = readRDS("../data/Jung_champnorm.rds")
-bVals_Leanna = readRDS("../data/WvT_champnorm.rds")
+bVals_Jung = readRDS("../data/Jung_champnorm_small.rds")
+bVals_Leanna = readRDS("../data/WvT_champnorm_small.rds")
 nsamples_Jung = ncol(bVals_Jung)
 nsamples_Leanna = ncol(bVals_Leanna)
 
@@ -44,7 +44,7 @@ names(pal) <- levels(pheno$cell.type)
 bVals_summary = data.frame(mean=rowMeans(bVals), 
                            stdev=rowSds(as.matrix(bVals)))
 bVals_summary = bVals_summary[order(bVals_summary$stdev, decreasing=T),]
-bVals_small = bVals[rownames(bVals_summary[1:10000,]),]
+bVals_small = bVals[rownames(bVals_summary[1:100000,]),]
 
 # find top 3 PCs with PCA of smaller dataset
 num_dimensions_PCA = 3
