@@ -29,7 +29,9 @@ pheno = data.frame(dataset = rep(c("Jung", "Leanna"), times=c(nsamples_Jung, nsa
                    cell.type = c(as.character(pheno_Jung$Subject.ID), sapply(strsplit(names(bVals)[(nsamples_Jung+1):ncol(bVals)], "[.-]"), "[", 1)))
 
 # set cell type factor levels for proper ordering
-pheno$cell.type <- factor(pheno$cell.type, levels=c("HSC", "MPP", "LMPP", "CMP", "GMP", "MEP", "CD34-", "CD34+38+", "CD34+38-", "KG1", "KG1T", "Thp1S", "Thp1T"))
+pheno$cell.type <- factor(pheno$cell.type, 
+                          levels=c("HSC", "MPP", "LMPP", "CMP", "GMP", "MEP", "CD34-", "CD34+38+", "CD34+38-", 
+                                   "KG1", "KG1T", "Thp1S", "Thp1T"))
 
 # set up palette for consistent colors across figures
 pal <- c("tomato3", "sienna2", "darkgoldenrod1", "darkolivegreen2", "springgreen3", "mediumseagreen", 
@@ -45,6 +47,11 @@ bVals_summary = data.frame(mean=rowMeans(bVals),
                            stdev=rowSds(as.matrix(bVals)))
 bVals_summary = bVals_summary[order(bVals_summary$stdev, decreasing=T),]
 bVals_small = bVals[rownames(bVals_summary[1:100000,]),]
+
+bVals_Jung_small = bVals_Jung[rownames(bVals_summary[1:100000,]),]
+saveRDS(bVals_Jung_small, file="../data/Jung_champnorm_small.rds")
+bVals_Leanna_small = bVals_Leanna[rownames(bVals_summary[1:100000,]),]
+saveRDS(bVals_Leanna_small, file="../data/WvT_champnorm_small.rds")
 
 # find top 3 PCs with PCA of smaller dataset
 num_dimensions_PCA = 3
