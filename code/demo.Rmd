@@ -13,11 +13,13 @@ My project found that a single genetic mutation in Tet2 dramatically changes leu
 
 Prior to what you see here, I used the ChAMP library to normalize the methylation data (quantile-based), and made a table of metadata.
 
+```{r setup, set.seed(5)}
+knitr::opts_chunk$set(cache = T)
+```
+
 
 ## Attach required packages and get data (local)
-```{r, messages=F, set.seed(5)}
-knitr::opts_chunk$set(cache = T)
-
+```{r, messages=F, warnings=F}
 # attach required packages
 library(ggplot2)
 library(matrixStats)
@@ -58,9 +60,6 @@ names(patientpal) = levels(pheno$patient)
 ## PCA of all samples 
 For a nice overview of all samples, I start with PCA and color points based on cell type. Qualitatively, the normal cells (red-green) are already separate from the leukemic cells (pink/purple). However, the cell types are intermixed in this projection.
 ```{r}
-# # set seed
-# set.seed(5)
-
 # sample 10,000 CpGs to plot
 bvals_small = bvals[sample(1:nrow(bvals), 10000), ]
 
@@ -152,10 +151,14 @@ gplots::heatmap.2(leuk_cluster_data,
 
 ### Calculate cluster purity for known cancer cell types
 ```{r}
+# cut dendrogram tree into 3 groups (3 known cancer cell groups)
 cut_cluster = melt(cutree(leuk_clusters, k = 3), value.name="cluster")
 cut_cluster$sample = rownames(cut_cluster)
+
+# merge with existing info about cell type
 pheno_cluster = merge(pheno, cut_cluster, by="sample")
 
+# make confusion matrix and do assess cluster purity
 confusion_mat = table(pheno_cluster[,c("cluster", "cell.type")])
 initial_purity_cancer = sum(rowMaxs(confusion_mat))/nrow(pheno_cluster)
 initial_purity_cancer
@@ -201,6 +204,7 @@ Light green: *CMP*,
 Green: *GMP*,  
 Dark green: *MEP*
 
+
 ### Heatmap of normal cells colored by patient
 ```{r}
 gplots::heatmap.2(norm_cluster_data, 
@@ -227,10 +231,14 @@ gplots::heatmap.2(norm_cluster_data,
 
 ### Calculate cluster purity for known normal cell types
 ```{r}
+# cut dendrogram tree into 6 groups (6 known normal cell groups)
 cut_cluster = melt(cutree(norm_clusters, k = 6), value.name="cluster")
 cut_cluster$sample = rownames(cut_cluster)
+
+# merge with existing info about cell type
 pheno_cluster = merge(pheno, cut_cluster, by="sample")
 
+# make confusion matrix and do assess cluster purity
 confusion_mat = table(pheno_cluster[,c("cluster", "cell.type")])
 initial_purity_normal = sum(rowMaxs(confusion_mat))/nrow(pheno_cluster)
 initial_purity_normal
@@ -320,12 +328,17 @@ Dark purple: *HSCs*,
 Light purple: *CD34+CD38+*,  
 Pink: *CD34- blasts*
 
-### Calculate cluster purity
+
+### Calculate cluster purity for cancer cell types after LDA
 ```{r}
+# cut dendrogram tree into 3 groups (3 known cancer cell groups)
 cut_cluster = melt(cutree(leuk_clusters, k = nclust), value.name="cluster")
 cut_cluster$sample = rownames(cut_cluster)
+
+# merge with existing info about cell type
 pheno_cluster = merge(pheno, cut_cluster, by="sample")
 
+# make confusion matrix and do assess cluster purity
 confusion_mat = table(pheno_cluster[,c("cluster", "cell.type")])
 lda_purity_cancer = sum(rowMaxs(confusion_mat))/nrow(pheno_cluster)
 lda_purity_cancer
@@ -333,7 +346,7 @@ lda_purity_cancer
 ```
 
 
-
+## Cluster normal samples in the LDA-transformed space
 ```{r}
 # How do normal cells cluster in the new space?
 normal_samples = pheno$sample.type == "Normal"
@@ -376,12 +389,16 @@ Green: *GMP*,
 Dark green: *MEP*
 
 
-### Calculate cluster purity for known normal cell types
+### Calculate cluster purity for known normal cell types after LDA
 ```{r}
+# cut dendrogram tree into 6 groups (6 known normal cell groups)
 cut_cluster = melt(cutree(norm_clusters, k = nclust), value.name="cluster")
 cut_cluster$sample = rownames(cut_cluster)
+
+# merge with existing info about cell type
 pheno_cluster = merge(pheno, cut_cluster, by="sample")
 
+# make confusion matrix and do assess cluster purity
 confusion_mat = table(pheno_cluster[,c("cluster", "cell.type")])
 lda_purity_normal = sum(rowMaxs(confusion_mat))/nrow(pheno_cluster)
 lda_purity_normal
