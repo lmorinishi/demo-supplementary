@@ -30,7 +30,7 @@ library(dendextend)
 library(reshape2)
 
 # read in normed methylation data from Jung et al
-bvals = readRDS("../data/Jung_champnorm.rds")
+bvals = readRDS("../data/Jung_champnorm_small.rds")
 nsamples = ncol(bvals)
 
 # read in phenotype metadata
@@ -250,25 +250,29 @@ initial_purity_normal
 ```{r}
 # Use LDA to separate HSCs, LSCs, and differentiated tumor cells
 bvals_LDA = t(scale(bvals))
+
 train_grps = pheno$cell.type %in% c("HSC", "CD34-", "CD34+38-")
+test_set = c(sample(which(pheno[train_grps,]$cell.type == "HSC"), 1),
+             sample(which(pheno[train_grps,]$cell.type == "CD34-"), 1),
+             sample(which(pheno[train_grps,]$cell.type == "CD34+38-"), 1))
 bvals_train = bvals_LDA[train_grps,]
 
 # find top 10,000 most variable CpGs, subset betas
 bvals_summary = data.frame(mean=colMeans(bvals_train),
                            stdev=colSds(as.matrix(bvals_train)))
 bvals_summary = bvals_summary[order(bvals_summary$stdev, decreasing=T),]
-bvals_train = bvals_train[,rownames(bvals_summary[1:10000,])]
+
+bvals_test = bvals_train[test_set, rownames(bvals_summary[1:10000,])]
+bvals_train = bvals_train[-test_set, rownames(bvals_summary[1:10000,])]
 
 # add cell type as a metadata column, set factor order
-bvals_train = data.frame(bvals_train, cell.type = pheno$cell.type[train_grps])
+bvals_train = data.frame(bvals_train, cell.type = pheno$cell.type[train_grps][-c(1,6,9)])
 bvals_train$cell.type = factor(as.character(bvals_train$cell.type), 
                                levels = c("HSC", "CD34-", "CD34+38-"))
 
-# LDA (~30s)
-# ptm = proc.time()
+# LDA
 dfLDA = lda(formula = cell.type ~ .,
             data=bvals_train)
-# proc.time() - ptm
 
 # calculate amt of between group variance that is explained by each LD
 prop = dfLDA$svd^2/sum(dfLDA$svd^2)
@@ -278,13 +282,16 @@ prop
 plda = predict(object=dfLDA,
                newdata=as.data.frame(bvals_LDA))
 
+shape_it = rep(F, nrow(pheno))
+shape_it[which(train_grps)[test_set]] = T
 # scatterplot of transformed data
-ggplot(data=as.data.frame(plda$x), aes(x=LD1, y=LD2, color=pheno$cell.type)) + 
+ggplot(data=as.data.frame(plda$x), aes(x=LD1, y=LD2, color=pheno$cell.type, shape=shape_it)) + 
   geom_point() +
   scale_color_manual(values=pal) + 
   theme_classic() + 
   labs(color="Cell type")
 
+predict(object=dfLDA, newdata=as.data.frame(bvals_test))
 
 ```
 
@@ -408,11 +415,10 @@ lda_purity_normal
 
 ## Show cluster purities
 ```{r}
-paste("Initial normal cluster purity:", round(initial_purity_normal, digits=4))
-paste("LDA normal cluster purity:", round(lda_purity_normal, digits=4))
-
-paste("Initial cancer cluster purity:", round(initial_purity_cancer, digits=4))
-paste("LDA cancer cluster purity:", round(lda_purity_cancer, digits=4))
+paste0("Initial normal cluster purity: ", round(initial_purity_normal, digits=4))  
+paste0("LDA normal cluster purity: ", round(lda_purity_normal, digits=4))  
+paste0("nInitial cancer cluster purity: ", round(initial_purity_cancer, digits=4))  
+paste0("nLDA cancer cluster purity: ", round(lda_purity_cancer, digits=4))  
 
 ```
 
